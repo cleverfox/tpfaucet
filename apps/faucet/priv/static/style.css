@@ -1,1 +1,7 @@
 body {}
+span.error {
+    color: red;
+    background: #fcc;
+    padding: 5px;
+    margin: 10px;
+}

@@ -8,8 +8,9 @@
 	 handle_info/2, init/1, terminate/2]).
 
 start_link(Name) ->
-    gen_server:start_link({local, mywallet}, mywallet,
-			  [Name], []).
+    gen_server:start_link(
+      {local, list_to_atom("wallet_"++atom_to_list(Name))}, 
+      mywallet, [Name], []).
 
 init([Name]) ->
     application:ensure_all_started(inets),
@@ -30,15 +31,12 @@ handle_call({give, Addr, Amount}, _From,
     try NewTx = tx:sign(Tx, MyKey),
 	wf:info("TX ~p", [tx:unpack(NewTx)]),
 	BinTX = base64:encode(NewTx),
-	{ok, {{_, 200, _}, _, ResBody}} = httpc:request(post,
-							{URL ++ "/api/tx/new",
-							 [], "application/json",
-							 <<"{\"tx\":\"",
-							   BinTX/binary,
-							   "\"}">>},
-							[],
-							[{body_format,
-							  binary}]),
+        Query={URL ++ "/api/tx/new", [], "application/json", 
+               <<"{\"tx\":\"", BinTX/binary, "\"}">>},
+        {ok,{{_,200,_},_,ResBody}} = httpc:request(post,
+                                                   Query,
+                                                   [],
+                                                   [{body_format, binary}]),
 	Res = jsx:decode(ResBody, [return_maps]),
 	wf:info("Res ~p", [Res]),
 	case Res of
@@ -62,6 +60,10 @@ handle_call({give, Addr, Amount}, _From,
 	  wf:info("Error ~p:~p at ~p", [Ec, Ee, S]),
 	  {reply, {error, {Ec, Ee}}, State}
     end;
+
+handle_call({give, _Addr, _Amount}, _From, State) ->
+    {reply, {error, "Not synchronized"}, State};
+
 handle_call(_Request, _From, State) ->
     {reply, ok, State}.
 
@@ -71,12 +73,11 @@ handle_info(refetch, #{name := Name} = State) ->
     case config:faucet_settings(Name) of
       #{address := MyAddr, key := MyKey, url := URL} ->
 	  try TA = binary_to_list(naddress:encode(MyAddr)),
-	      error_logger:error_msg("C0 ~p", [TA]),
 	      {ok, {{_HTTP11, 200, _OK}, _Headers, Body}} =
 		  httpc:request(get, {URL ++ "/api/address/" ++ TA, []},
 				[], [{body_format, binary}]),
-	      #{<<"info">> := #{<<"seq">> := Seq}} = jsx:decode(Body,
-								[return_maps]),
+	      #{<<"info">> := Info} = jsx:decode(Body, [return_maps]),
+              Seq=maps:get(<<"seq">>,Info,0),
 	      {noreply,
 	       State#{seq => Seq, addr => MyAddr, key => MyKey,
 		      url => URL}}

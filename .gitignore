@@ -30,3 +30,4 @@ rebar3.crashdump
 tags
 testrel
 tmp/
+wallets.config
