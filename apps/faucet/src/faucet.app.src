@@ -1,0 +1,8 @@
+{application,faucet,
+             [{description,"N2O faucet Application"},
+              {vsn,"2.9"},
+              {registered,[]},
+              {applications,[kernel,stdlib,gproc,n2o]},
+              {mod,{faucet,[]}},
+              {env,[]},
+              {modules,[]}]}.
